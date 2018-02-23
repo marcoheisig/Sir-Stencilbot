@@ -9,8 +9,7 @@
                                    (game-hero game player-id))
                          5.0)
                  collect hero-id)))
-    (mcts-search game :timeout 0.6
-                      :metric #'sir-stencilbot-metric
+    (mcts-search game :metric #'sir-stencilbot-metric
                       :ignorable-heroes ignorable-heroes)))
 
 (defun distance (hero-1 hero-2)
@@ -27,10 +26,10 @@
           (let ((old-gold-mines (count id (game-mine-owners old-game)))
                 (new-gold-mines (count id (game-mine-owners new-game))))
             (setf (aref gains id)
-                  (max (+ 0.4
+                  (max (+ 0.1
                           ;; winning mines is good
-                          (* 2.0 (max 0 (- new-gold-mines old-gold-mines)))
+                          (* 0.6 (max 0 (- new-gold-mines old-gold-mines)))
                           ;; health is important
-                          (* 0.05 (- (hero-life old-hero)
+                          (* 0.015 (- (hero-life old-hero)
                                      (hero-life new-hero))))
                        0.0))))))))

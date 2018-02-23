@@ -5,6 +5,8 @@
 (defparameter *test-server* "http://vindinium.walberla.net/api/training")
 (defparameter *server* "http://vindinium.walberla.net/api/training")
 (defparameter *next-url* nil)
+(defparameter *time-budget* nil)
+(defparameter *time-start* nil)
 
 (defun printf (fmt &rest args)
   (apply #'format t fmt args)
@@ -22,14 +24,16 @@
     (printf "View URL: ~A~%" (game-view-url game))
     ;; The primary game loop
     (loop until (game-finished-p game) do
-      (let ((next-turn (funcall bot-function game)))
+      (let* ((*time-budget* (* 0.4 internal-time-units-per-second))
+             (*time-start* (get-internal-real-time))
+             (next-turn (funcall bot-function game)))
         #+nil (printf "Going ~(~A~).~%" next-turn)
         (let ((json (communicate *next-url*
                                  (cons "key" *secret-key*)
                                  (cons "dir" (string-capitalize next-turn)))))
           (when (not json) (loop-finish))
           (let ((new-game (parse-game json)))
-            ;;(check-simulation game new-game)
+            (check-simulation game new-game)
             (setf game new-game)))))
     (printf "Done!")))
 
@@ -37,8 +41,7 @@
   (multiple-value-bind (body status)
       (let ((drakma:*text-content-types*
               (cons '("application" . "json") drakma:*text-content-types*)))
-        (drakma:http-request url :method :post
-                                 :parameters params))
+        (drakma:http-request url :method :post :parameters params))
     (if (= status 200)
         (jsown:parse body)
         (printf "HTTP ERROR: ~a~%~a" status body))))

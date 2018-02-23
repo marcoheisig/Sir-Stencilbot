@@ -24,7 +24,7 @@
     (printf "View URL: ~A~%" (game-view-url game))
     ;; The primary game loop
     (loop until (game-finished-p game) do
-      (let* ((*time-budget* (* 0.5 internal-time-units-per-second))
+      (let* ((*time-budget* (* 0.4 internal-time-units-per-second))
              (*time-start* (get-internal-real-time))
              (next-turn (funcall bot-function game)))
         #+nil (printf "Going ~(~A~).~%" next-turn)

@@ -31,7 +31,9 @@
                           (* 0.4 (- new-gold-mines old-gold-mines))
                           ;; health is important
                           (if (< (hero-life old-hero) 72)
-                            (* 0.01 (- (hero-life new-hero)
-                                       (hero-life old-hero)))
+                              (min
+                               0.3
+                               (* 0.01 (- (hero-life new-hero)
+                                          (hero-life old-hero))))
                             0.0))
                        0.0))))))))

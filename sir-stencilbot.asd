@@ -6,6 +6,7 @@
                "drakma"
                "jsown"
                "cl-ppcre"
+               "trivial-garbage"
                "trivia")
 
   :components ((:module "Code"

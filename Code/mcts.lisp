@@ -37,6 +37,9 @@
         (time-units (* timeout internal-time-units-per-second))
         (node-counter 0))
     (loop while (< (- (get-internal-real-time) t0) time-units) do
+      ;; after 625 iterations, ignore enemies
+      (when (> node-counter 625)
+        (setf ignorable-heroes (remove (game-player-id state) '(1 2 3 4))))
       (let* ((new-node (mcts-select root))
              (new-game (mcts-node-state new-node))
              (gains (funcall metric state (mcts-simulate new-game))))
@@ -70,7 +73,7 @@
          (loop for child-node in (mcts-node-children node) do
            (let* ((child-gain (aref (mcts-node-gains child-node)
                                     (game-active-hero
-                                     (mcts-node-state child-node))))
+                                     (mcts-node-state node))))
                   (child-visits (coerce (mcts-node-visits child-node) 'single-float))
                   (gain (+ (/ child-gain child-visits)
                            (the single-float
@@ -83,7 +86,7 @@
 
 (defun mcts-simulate (game)
   (setf game (copy-full-game game))
-  (loop repeat 40 do
+  (loop repeat 10 do
     (setf (game-active-hero game) (game-player-id game))
     (setf game (advance-game game (random-possible-move game))))
   game)

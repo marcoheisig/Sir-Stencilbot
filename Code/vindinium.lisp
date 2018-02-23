@@ -94,6 +94,7 @@
   (= (game-turn game)
      (game-max-turns game)))
 
+(declaim (inline next-player))
 (defun next-player (id)
   (if (= 4 id) 1 (1+ id)))
 

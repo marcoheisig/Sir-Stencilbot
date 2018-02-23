@@ -1,6 +1,7 @@
 (in-package :sir-stencilbot)
 
 (defun advance-game (game move)
+  (declare (optimize speed))
   (let* ((game (copy-game game))
          (active (game-active-hero game))
          (hero (copy-hero (game-hero game active))))

@@ -9,7 +9,7 @@
                                    (game-hero game player-id))
                          5.0)
                  collect hero-id)))
-    (mcts-search game :timeout 0.2
+    (mcts-search game :timeout 0.6
                       :metric #'sir-stencilbot-metric
                       :ignorable-heroes ignorable-heroes)))
 

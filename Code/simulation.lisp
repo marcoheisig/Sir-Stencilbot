@@ -12,8 +12,8 @@
         (let ((x (hero-x hero))
               (y (hero-y hero)))
           (case move
-            (:north (values (1+ x) y))
-            (:south (values (1- x) y))
+            (:north (values (1- x) y))
+            (:south (values (1+ x) y))
             (:east  (values x (1+ y)))
             (:west  (values x (1- y)))
             (:stay  (values x y))))

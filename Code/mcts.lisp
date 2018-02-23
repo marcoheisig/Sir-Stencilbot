@@ -23,24 +23,34 @@
              :children nil
              :visits 1
              :untried-moves (game-possible-moves state)
-             :gains (mcts-simulate state))))
+             :gains (make-array 5 :element-type 'non-negative-single-float
+                                  :initial-element 0.0))))
       (prog1 node
         (unless (null parent)
           (pushnew node (mcts-node-children parent))
           (removef (mcts-node-untried-moves parent) move))))))
 
 ;;; Return a good move as determined by MCTS.
-(defun mcts-search (state &key timeout metric)
+(defun mcts-search (state &key timeout metric ignorable-heroes)
   (let ((root (make-mcts-node nil state))
         (t0 (get-internal-real-time))
         (time-units (* timeout internal-time-units-per-second))
         (node-counter 0))
     (loop while (< (- (get-internal-real-time) t0) time-units) do
       (let* ((new-node (mcts-select root))
-             (gains (funcall metric (mcts-simulate (mcts-node-state new-node)))))
+             (new-game (mcts-node-state new-node))
+             (gains (funcall metric state (mcts-simulate new-game))))
         (mcts-backpropagate new-node gains)
-        (incf node-counter)))
+        (incf node-counter)
+        (loop while (find (game-active-hero new-game) ignorable-heroes) do
+          (setf (game-active-hero new-game)
+                (next-player (game-active-hero new-game))))))
     (printf "Searched ~D nodes.~%" node-counter)
+    (printf "Ignoring Players ~A.~%" ignorable-heroes)
+    (printf "Move Quality: ~{~A: ~A~^ ~}~%"
+            (loop for child in (mcts-node-children root)
+                  collect (mcts-node-move child)
+                  collect (mcts-node-visits child)))
     (mcts-node-move
      (first
       (sort
@@ -48,36 +58,40 @@
        #'> :key #'mcts-node-visits)))))
 
 (defun mcts-select (node)
+  (declare (optimize (speed 3) (safety 0)))
   (if (not (null (mcts-node-untried-moves node)))
       (let ((move (random-elt (mcts-node-untried-moves node))))
         (make-mcts-node node move))
       ;; Use UCT to choose a child node
       (mcts-select
-       (let ((max-gain -1.0)
-             (max-node nil))
+       (let ((max-gain most-negative-single-float)
+             (max-node nil)
+             (parent-visits (coerce (mcts-node-visits node) 'single-float)))
          (loop for child-node in (mcts-node-children node) do
-           (let* ((parent-visits (mcts-node-visits node))
-                  (child-gain (aref (mcts-node-gains child-node)
+           (let* ((child-gain (aref (mcts-node-gains child-node)
                                     (game-active-hero
                                      (mcts-node-state child-node))))
-                  (child-visits (mcts-node-visits child-node))
+                  (child-visits (coerce (mcts-node-visits child-node) 'single-float))
                   (gain (+ (/ child-gain child-visits)
-                           (sqrt (/ (* 2 (log parent-visits))
-                                    child-visits)))))
+                           (the single-float
+                                (sqrt (/ (* 2.0 (log parent-visits 2.0))
+                                         child-visits))))))
              (when (> gain max-gain)
-               (setf gain max-gain)
+               (setf max-gain gain)
                (setf max-node child-node))))
          max-node))))
 
-(defun mcts-simulate (state)
-  (loop repeat 15 do
-    (setf state (advance-game state (random-possible-move state)))
-    (setf state (advance-game state :stay))
-    (setf state (advance-game state :stay))
-    (setf state (advance-game state :stay)))
-  state)
+(defun mcts-simulate (game)
+  (setf game (copy-full-game game))
+  (loop repeat 40 do
+    (setf (game-active-hero game) (game-player-id game))
+    (setf game (advance-game game (random-possible-move game))))
+  game)
 
 (defun mcts-backpropagate (node gains)
+  (declare (type (or null mcts-node) node)
+           (type (simple-array non-negative-single-float (5)) gains)
+           (optimize (speed 3) (safety 0)))
   (unless (not node)
     (incf (mcts-node-visits node))
     (loop for index below 5 do

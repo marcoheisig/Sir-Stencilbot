@@ -24,13 +24,13 @@
     (loop until (game-finished-p game) do
       (let ((next-turn (funcall bot-function game)))
         #+nil (printf "Going ~(~A~).~%" next-turn)
-        (let ((new-game
-                (parse-game
-                 (communicate *next-url*
-                              (cons "key" *secret-key*)
-                              (cons "dir" (string-capitalize next-turn))))))
-          ;;(check-simulation game new-game)
-          (setf game new-game))))
+        (let ((json (communicate *next-url*
+                                 (cons "key" *secret-key*)
+                                 (cons "dir" (string-capitalize next-turn)))))
+          (when (not json) (loop-finish))
+          (let ((new-game (parse-game json)))
+            ;;(check-simulation game new-game)
+            (setf game new-game)))))
     (printf "Done!")))
 
 (defun communicate (url &rest params)

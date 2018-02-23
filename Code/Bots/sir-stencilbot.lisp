@@ -1,41 +1,36 @@
 (in-package :sir-stencilbot)
 
-
 (defun |Sir Stencilbot| (game)
-  (mcts-search game
-               :timeout 0.3
-               :metric #'sir-stencilbot-metric))
+  (let* ((player-id (game-player-id game))
+         (other-heroes (remove player-id (list 1 2 3 4)))
+         (ignorable-heroes
+           (loop for hero-id in other-heroes
+                 when (> (distance (game-hero game hero-id)
+                                   (game-hero game player-id))
+                         5.0)
+                 collect hero-id)))
+    (mcts-search game :timeout 0.2
+                      :metric #'sir-stencilbot-metric
+                      :ignorable-heroes ignorable-heroes)))
 
-(defun sir-stencilbot-metric (game)
-  (let ((gains (make-array 5 :element-type 'non-negative-single-float
-                             :initial-element 0.0))
-        (heroes (sort (list (game-hero-1 state)
-                            (game-hero-2 state)
-                            (game-hero-3 state)
-                            (game-hero-4 state))
-                      #'> :key #'hero-gold)))
-    (let ((top-gold (hero-gold (first players)))
-          (second-most-gold (hero-gold (second heroes))))
-      (loop for player in players
-            maximize (hero-gold player) into max-gold
-            minimize (hero-gold player) into min-gold
-            finally
-               (let ((avg-gold (/ (- max-gold min-gold) 2))
-                     (var-gold (- max-gold avg-gold)))
-                 (loop for player in players do
-                   (setf (aref gains (hero-id player))
-                         (/ ()))))))
+(defun distance (hero-1 hero-2)
+  (sqrt (+ (expt (- (hero-x hero-1) (hero-x hero-2)) 2)
+           (expt (- (hero-y hero-1) (hero-y hero-2)) 2))))
+
+(defun sir-stencilbot-metric (old-game new-game)
+  (let ((gains (make-array 5 :element-type 'single-float
+                             :initial-element 0.0)))
     (prog1 gains
-      (flet ((predicted-gold (hero)
-               (+ (hero-gold hero)
-                  (* 7 (count (hero-id hero) (game-mine-owners state))))))
-        (setf (aref gains (hero-id (first players)))
-              (let ((gold-difference
-                      (- (predicted-gold (first players))
-                         (predicted-gold (second players)))))
-                (if (plusp gold-difference)
-                    (min (+ 0.5 (/ gold-difference 10)) 1.0)
-                    0.4)))
-        (loop for player in (rest players) do
-          (setf (aref gains (hero-id player))
-                0.0))))))
+      (loop for id from 1 to 4 do
+        (let ((old-hero (game-hero old-game id))
+              (new-hero (game-hero new-game id)))
+          (let ((old-gold-mines (count id (game-mine-owners old-game)))
+                (new-gold-mines (count id (game-mine-owners new-game))))
+            (setf (aref gains id)
+                  (max (+ 0.4
+                          ;; winning mines is good
+                          (* 2.0 (max 0 (- new-gold-mines old-gold-mines)))
+                          ;; health is important
+                          (* 0.05 (- (hero-life old-hero)
+                                     (hero-life new-hero))))
+                       0.0))))))))

@@ -5,7 +5,8 @@
   :depends-on ("alexandria"
                "drakma"
                "jsown"
-               "cl-ppcre")
+               "cl-ppcre"
+               "trivia")
 
   :components ((:module "Code"
                 :serial t

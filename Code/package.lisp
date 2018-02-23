@@ -1,2 +1,2 @@
 (defpackage :sir-stencilbot
-  (:use :cl :alexandria))
+  (:use :cl :alexandria :trivia))

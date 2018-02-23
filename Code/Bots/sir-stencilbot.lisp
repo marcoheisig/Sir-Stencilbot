@@ -26,10 +26,12 @@
           (let ((old-gold-mines (count id (game-mine-owners old-game)))
                 (new-gold-mines (count id (game-mine-owners new-game))))
             (setf (aref gains id)
-                  (max (+ 0.1
+                  (max (+ 0.4
                           ;; winning mines is good
-                          (* 0.6 (max 0 (- new-gold-mines old-gold-mines)))
+                          (* 0.4 (- new-gold-mines old-gold-mines))
                           ;; health is important
-                          (* 0.015 (- (hero-life old-hero)
-                                     (hero-life new-hero))))
+                          (if (< (hero-life old-hero) 72)
+                            (* 0.01 (- (hero-life new-hero)
+                                       (hero-life old-hero)))
+                            0.0))
                        0.0))))))))

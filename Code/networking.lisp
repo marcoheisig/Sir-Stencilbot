@@ -2,27 +2,36 @@
 
 (defparameter *secret-key* "x5mv46gq")
 (defparameter *arena-server* "http://vindinium.walberla.net/api/arena")
+(defparameter *test-server* "http://vindinium.walberla.net/api/training")
+(defparameter *server* "http://vindinium.walberla.net/api/training")
 (defparameter *next-url* nil)
 
 (defun printf (fmt &rest args)
   (apply #'format t fmt args)
   (finish-output))
 
-(defun play-game (bot-function)
+(defun play-game (bot-function &key (test t))
+  (let ((*server* (if test *test-server* *arena-server*)))
+    (run-game bot-function)))
+
+(defun run-game (bot-function)
   (printf "Connecting...~%")
-  (let ((game (receive-game)))
-    (printf "We are player ~R.~%" (game-player-id game))
+  (let* ((game (parse-game
+                (communicate *server* (cons "key" *secret-key*)))))
+    (printf "We are player ~D.~%" (game-player-id game))
+    (printf "View URL: ~A~%" (game-view-url game))
+    ;; The primary game loop
     (loop until (game-finished-p game) do
       (let ((next-turn (funcall bot-function game)))
-        (print (string-capitalize next-turn))
-        (communicate *next-url*
-                     (cons "key" *secret-key*)
-                     (cons "dir" (string-capitalize next-turn)))
-        (setf game (advance-game game next-turn))))))
-
-(defun receive-game ()
-  (parse-game
-   (communicate *arena-server* (cons "key" *secret-key*))))
+        #+nil (printf "Going ~(~A~).~%" next-turn)
+        (let ((new-game
+                (parse-game
+                 (communicate *next-url*
+                              (cons "key" *secret-key*)
+                              (cons "dir" (string-capitalize next-turn))))))
+          ;;(check-simulation game new-game)
+          (setf game new-game))))
+    (printf "Done!")))
 
 (defun communicate (url &rest params)
   (multiple-value-bind (body status)
@@ -39,7 +48,6 @@
         (my-hero (jsown:val json "hero"))
         (view-url (jsown:val json "viewUrl")))
     (setf *next-url* (jsown:val json "playUrl"))
-    (printf "Started Game:~%ViewURL: ~A~%" view-url)
     (let ((game-id (jsown:val game "id"))
           (game-turn (jsown:val game "turn"))
           (game-max-turns (jsown:val game "maxTurns"))
@@ -53,6 +61,7 @@
                         :id game-id
                         :player-id player-id
                         :training nil
+                        :view-url view-url
                         :board board
                         :mine-positions mine-positions
                         :max-turns game-max-turns)
@@ -72,7 +81,7 @@
            (mine-positions '()))
        (loop for iy below n do
          (loop for ix below n do
-           (let ((string-index (* 2 (+ iy (* n ix)))))
+           (let ((string-index (* 2 (+ (* n ix) iy))))
              (multiple-value-bind (tile mine-owner)
                  (parse-tile (aref board-string string-index)
                              (aref board-string (1+ string-index)))
@@ -84,45 +93,70 @@
         board
         (make-array (length mine-owners)
                     :element-type '(unsigned-byte 4)
-                    :initial-contents mine-owners)
+                    :initial-contents (nreverse mine-owners))
         (make-array (length mine-positions)
                     :element-type '(cons coordinate coordinate)
-                    :initial-contents mine-positions))))))
+                    :initial-contents (nreverse mine-positions)))))))
 
 (defun parse-tile (first second)
   (ematch (list first second)
     ((list #\  #\ ) (values :air nil))
     ((list #\# #\#) (values :wall nil))
     ((list #\[ #\]) (values :tavern nil))
-    ((list #\$ id) (values :mine (parse-integer (string id))))
+    ((list #\$ #\-) (values :mine 0))
+    ((list #\$ #\1) (values :mine 1))
+    ((list #\$ #\2) (values :mine 2))
+    ((list #\$ #\3) (values :mine 3))
+    ((list #\$ #\4) (values :mine 4))
     ((list #\@ _) (values :air nil))))
 
 (defun parse-heroes (heroes)
-  (mapcar #'parse-hero heroes))
+  (sort
+   (mapcar #'parse-hero heroes) #'<
+   :key #'hero-id))
 
 (defun parse-hero (hero-json)
-  (let ((id (jsown:val hero-json "id"))
-        (name (jsown:val hero-json "name"))
-        (user-id (jsown:val hero-json "userId"))
-        (elo (jsown:val hero-json "elo"))
-        (pos (jsown:val hero-json "pos"))
-        (spawn-pos (jsown:val hero-json "spawnPos"))
-        (life (jsown:val hero-json "life"))
-        (gold (jsown:val hero-json "gold")))
-    (let ((x (jsown:val pos "x"))
-          (y (jsown:val pos "y"))
-          (spawn-x (jsown:val spawn-pos "x"))
-          (spawn-y (jsown:val spawn-pos "y")))
-      (make-hero
-       :static-state (make-hero-static-state
-                      :id id
-                      :name name
-                      :user-id user-id
-                      :elo elo
-                      :spawn-x spawn-x
-                      :spawn-y spawn-y)
-       :last-dir :stay
-       :gold gold
-       :life life
-       :x x
-       :y y))))
+  (flet ((maybe-val (json key default)
+           (or (ignore-errors (jsown:val json key))
+               default)))
+    (let ((id (jsown:val hero-json "id"))
+          (name (jsown:val hero-json "name"))
+          (user-id (maybe-val hero-json "userId" "none"))
+          (elo (maybe-val hero-json "elo" 0))
+          (pos (jsown:val hero-json "pos"))
+          (spawn-pos (jsown:val hero-json "spawnPos"))
+          (life (jsown:val hero-json "life"))
+          (gold (jsown:val hero-json "gold")))
+      (let ((x (jsown:val pos "x"))
+            (y (jsown:val pos "y"))
+            (spawn-x (jsown:val spawn-pos "x"))
+            (spawn-y (jsown:val spawn-pos "y")))
+        (make-hero
+         :static-state (make-hero-static-state
+                        :id id
+                        :name name
+                        :user-id user-id
+                        :elo elo
+                        :spawn-x spawn-x
+                        :spawn-y spawn-y)
+         :gold gold
+         :life life
+         :x x
+         :y y)))))
+
+;;; Check whether there exists a series of four turns that turn OLD-GAME
+;;; into NEW-GAME. Signal an error if this is not possible.
+(defun check-simulation (old-game new-game)
+  (flet ((run-simulation (turns)
+           (let ((result old-game))
+             (loop for turn in turns do
+               (setf result (advance-game result turn)))
+             result)))
+    (block nil
+      (map-product
+       (lambda (&rest turns)
+         (let ((simulation (run-simulation turns)))
+           (when (game-equal new-game simulation)
+             (return))))
+       #1='(:stay :north :south :east :west) #1# #1# #1#)
+      (error "Cannot advance ~A to ~A.~%" old-game new-game))))

@@ -12,5 +12,8 @@
                 :serial t
                 :components ((:file "package")
                              (:file "vindinium")
+                             (:file "simulation")
                              (:file "networking")
-                             (:file "mcts")))))
+                             (:file "mcts")
+                             (:module "Bots"
+                              :components ((:file "sir-stencilbot")))))))

@@ -1,5 +1,5 @@
-(in-package :sir-stencilbot)
-  
+(in-package :vindinium)
+
 (defparameter *secret-key* "hujgkdbt")
 ;;(defparameter *secret-key* "x5mv46gq")
 (defparameter *arena-server* "http://vindinium.walberla.net/api/arena")
@@ -58,19 +58,19 @@
           (game-board (jsown:val game "board"))
           (game-heroes (parse-heroes (jsown:val game "heroes")))
           (player-id (jsown:val my-hero "id")))
-      (multiple-value-bind (board mine-owners mine-positions)
+      (multiple-value-bind (board mine-owners mine-positions tavern-positions)
           (parse-board game-board)
         (make-game
          :static-state (make-game-static-state
                         :id game-id
                         :player-id player-id
-                        :training nil
                         :view-url view-url
                         :board board
                         :mine-positions mine-positions
+                        :tavern-positions tavern-positions
                         :max-turns game-max-turns)
          :turn game-turn
-         :active-hero player-id
+         :active-id player-id
          :mine-owners mine-owners
          :hero-1 (elt game-heroes 0)
          :hero-2 (elt game-heroes 1)
@@ -82,16 +82,20 @@
     ((list _ (cons "size" n) (cons "tiles" board-string))
      (let ((board (make-array (list n n) :element-type 'game-tile :initial-element :air))
            (mine-owners '())
-           (mine-positions '()))
+           (mine-positions '())
+           (tavern-positions '()))
        (loop for iy below n do
          (loop for ix below n do
            (let ((string-index (* 2 (+ (* n ix) iy))))
-             (multiple-value-bind (tile mine-owner)
+             (multiple-value-bind (tile owner)
                  (parse-tile (aref board-string string-index)
                              (aref board-string (1+ string-index)))
-               (unless (not mine-owner)
-                 (push mine-owner mine-owners)
-                 (push (cons ix iy) mine-positions))
+               (case tile
+                 (:mine
+                  (push owner mine-owners)
+                  (push (cons ix iy) mine-positions))
+                 (:tavern
+                  (push (cons ix iy) tavern-positions)))
                (setf (aref board ix iy) tile)))))
        (values
         board
@@ -100,7 +104,10 @@
                     :initial-contents (nreverse mine-owners))
         (make-array (length mine-positions)
                     :element-type '(cons coordinate coordinate)
-                    :initial-contents (nreverse mine-positions)))))))
+                    :initial-contents (nreverse mine-positions))
+        (make-array (length tavern-positions)
+                    :element-type '(cons coordinate coordinate)
+                    :initial-contents (nreverse tavern-positions)))))))
 
 (defun parse-tile (first second)
   (ematch (list first second)
@@ -154,7 +161,7 @@
   (flet ((run-simulation (turns)
            (let ((result old-game))
              (loop for turn in turns do
-               (setf result (advance-game result turn)))
+               (setf result (game-simulate result turn)))
              result)))
     (block nil
       (map-product

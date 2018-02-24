@@ -1,6 +1,6 @@
-(in-package :sir-stencilbot)
+(in-package :vindinium)
 
-(defun advance-game (game move)
+(defun game-simulate (game move)
   (declare (optimize speed))
   (let* ((game (copy-game game))
          (active (game-active-hero game))
@@ -22,7 +22,7 @@
       (printf "Hero ~D (~D ~D) -> (~D ~D)~%"
               active (hero-x hero) (hero-y hero) new-x new-y)
       (unless (eq move :stay)
-        (let ((tile (game-board-ref game new-x new-y)))
+        (let ((tile (game-tile game new-x new-y)))
           (case tile
             (:air
              (unless (hero-at-coordinates-p game new-x new-y)
@@ -56,8 +56,8 @@
     (unless (= 1 (hero-life hero))
       (decf (hero-life hero)))
     ;; update game state
-    (setf (game-active-hero game)
-          (next-player (game-active-hero game)))
+    (setf (game-active-id game)
+          (next-player (game-active-id game)))
     (incf (game-turn game))
     game))
 

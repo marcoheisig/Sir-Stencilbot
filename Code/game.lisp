@@ -1,4 +1,4 @@
-(in-package :sir-stencilbot)
+(in-package :vindinium)
 
 (deftype game-move ()
   '(member :north :south :east :west :stay))
@@ -46,16 +46,16 @@
 (defstruct game-static-state
   (id           nil :type string                         :read-only t)
   (player-id    nil :type (integer 1 4)                  :read-only t)
-  (training     nil :type boolean                        :read-only t)
   (view-url     nil :type string                         :read-only t)
   (board        nil :type (simple-array game-tile (* *)) :read-only t)
   (max-turns    nil :type non-negative-fixnum            :read-only t)
-  (mine-positions nil :type (simple-array (cons coordinate coordinate) (*))))
+  (mine-positions nil :type (simple-array (cons coordinate coordinate) (*)))
+  (tavern-positions nil :type (simple-array (cons coordinate coordinate) (*))))
 
 (defstruct game
   (static-state nil :type game-static-state)
   (turn   0   :type non-negative-fixnum)
-  (active-hero 1 :type (integer 1 4))
+  (active-id 1 :type (integer 1 4))
   (mine-owners nil :type (simple-array (integer 0 4) (*)))
   (hero-1 nil :type hero)
   (hero-2 nil :type hero)
@@ -64,11 +64,11 @@
 
 (define-static-reader game id)
 (define-static-reader game player-id)
-(define-static-reader game training)
 (define-static-reader game view-url)
 (define-static-reader game board)
 (define-static-reader game max-turns)
 (define-static-reader game mine-positions)
+(define-static-reader game tavern-positions)
 
 (defun game-hero (game id)
   (ecase id
@@ -84,7 +84,7 @@
     (3 (setf (game-hero-3 game) hero))
     (4 (setf (game-hero-4 game) hero))))
 
-(defun game-board-ref (game x y)
+(defun game-tile (game x y)
   (let ((board (game-board game)))
     (if (array-in-bounds-p board x y)
         (aref board x y)
@@ -138,10 +138,10 @@
   (let* ((hero (game-hero game (game-active-hero game)))
          (x (hero-x hero))
          (y (hero-y hero)))
-    (let ((north (game-board-ref game (1- x) y))
-          (south (game-board-ref game (1+ x) y))
-          (east (game-board-ref game x (1+ y)))
-          (west (game-board-ref game x (1- y)))
+    (let ((north (game-tile game (1- x) y))
+          (south (game-tile game (1+ x) y))
+          (east (game-tile game x (1+ y)))
+          (west (game-tile game x (1- y)))
           (result '()))
       (unless (eq north :wall) (push :north result))
       (unless (eq east :wall) (push :east result))
@@ -151,4 +151,8 @@
 
 (defun game-player-hero (game)
   (declare (game game))
-  (game-hero game (game-active-hero game)))
+  (game-hero game (game-player-id game)))
+
+(defun game-active-hero (game)
+  (declare (game game))
+  (game-hero game (game-active-id game)))

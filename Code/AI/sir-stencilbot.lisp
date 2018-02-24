@@ -1,20 +1,13 @@
-(in-package :sir-stencilbot)
+(in-package :vindinium/sir-stencilbot)
 
 (defun |Sir Stencilbot| (game)
-  (let* ((player-id (game-player-id game))
-         (other-heroes (remove player-id (list 1 2 3 4)))
-         (ignorable-heroes
-           (loop for hero-id in other-heroes
-                 when (> (distance (game-hero game hero-id)
-                                   (game-hero game player-id))
-                         5.0)
-                 collect hero-id)))
-    (mcts-search game :metric #'sir-stencilbot-metric
-                      :ignorable-heroes ignorable-heroes)))
-
-(defun distance (hero-1 hero-2)
-  (sqrt (+ (expt (- (hero-x hero-1) (hero-x hero-2)) 2)
-           (expt (- (hero-y hero-1) (hero-y hero-2)) 2))))
+  (mcts-search
+   game
+   :time-budget 0.4
+   :active-player-fn (lambda (game) (1- (game-active-id game)))
+   :move-fn #'game-simulate
+   :playout-fn #'playout
+   :untried-move-fn #'untried-moves))
 
 (defun sir-stencilbot-metric (old-game new-game)
   (let ((gains (make-array 5 :element-type 'single-float
@@ -37,3 +30,9 @@
                                           (hero-life old-hero))))
                             0.0))
                        0.0))))))))
+
+(defun playout (game)
+  )
+
+(defun untried-moves (game)
+  )

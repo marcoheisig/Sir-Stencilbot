@@ -1,6 +1,7 @@
 (in-package :sir-stencilbot)
-
-(defparameter *secret-key* "x5mv46gq")
+  
+(defparameter *secret-key* "hujgkdbt")
+;;(defparameter *secret-key* "x5mv46gq")
 (defparameter *arena-server* "http://vindinium.walberla.net/api/arena")
 (defparameter *test-server* "http://vindinium.walberla.net/api/training")
 (defparameter *server* "http://vindinium.walberla.net/api/training")
@@ -24,7 +25,7 @@
     (printf "View URL: ~A~%" (game-view-url game))
     ;; The primary game loop
     (loop until (game-finished-p game) do
-      (let* ((*time-budget* (* 0.4 internal-time-units-per-second))
+      (let* ((*time-budget* (* 0.5 internal-time-units-per-second))
              (*time-start* (get-internal-real-time))
              (next-turn (funcall bot-function game)))
         #+nil (printf "Going ~(~A~).~%" next-turn)
@@ -35,7 +36,7 @@
           (let ((new-game (parse-game json)))
             ;(check-simulation game new-game)
             (setf game new-game)))))
-    (printf "Done!")))
+    (printf "~&Done!~%")))
 
 (defun communicate (url &rest params)
   (multiple-value-bind (body status)

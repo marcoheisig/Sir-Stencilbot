@@ -34,14 +34,10 @@
                    (health-score
                      (- (/ (float (hero-life hero)) 50.0)
                         1.0)))
-               #+nil
-               (when (= (hero-id hero) (game-player-id game))
-                 (format t "health-score: ~,2F position-score ~,2F gold-score ~,2F~%"
-                         health-score position-score gold-score))
                (tanh (+ ;; caution
-                      (* 0.3 health-score)
+                      (* 0.05 health-score)
                       ;; greed
-                      (* 2.0 gold-score)))))))
+                      (* 1.0 gold-score)))))))
       (make-array  4 :element-type 'single-float
                      :initial-contents (list (individual-playout 0)
                                              (individual-playout 1)

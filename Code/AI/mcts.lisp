@@ -29,6 +29,7 @@
         (incf node-counter))
       (printf "Searched ~D nodes.~%" node-counter)
       (printf "Tree depth: ~D.~%" (tree-depth root))
+      (printf "Heat map: ~A.~%" (heatmap root))
       (printf "Weights: (~{(:~A . ~,5F)~^ ~})~%"
               (loop for child in (mcts-node-children root)
                     collect (mcts-node-move child)
@@ -38,12 +39,6 @@
         (sort
          (mcts-node-children root)
          #'> :key #'mcts-node-visits))))))
-
-(defun tree-depth (node)
-  (if (null (mcts-node-children node))
-      1
-      (1+ (loop for child in (mcts-node-children node)
-                maximize (tree-depth child)))))
 
 (defstruct (mcts-node
             (:constructor %make-mcts-node))
@@ -99,8 +94,9 @@
               (parent-visits (coerce (mcts-node-visits parent) 'single-float)))
           (setf (mcts-node-quality node)
                 (+ (/ child-quality child-visits)
-                   (sqrt (/ (* 2.0 (log parent-visits 2))
-                            child-visits))))))))
+                   (* 0.2
+                      (sqrt (/ (* 2.0 (log parent-visits 2))
+                               child-visits)))))))))
 
 (defun mcts-add-node (node)
   (let ((untried-moves (mcts-node-untried-moves node)))
@@ -125,3 +121,30 @@
           for index from 0 do
             (incf (aref (mcts-node-weights node) index) q))
     (mcts-backpropagate (mcts-node-parent node) weights)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;; debugging utilities
+
+(defun tree-depth (node)
+  (if (null (mcts-node-children node))
+      1
+      (1+ (loop for child in (mcts-node-children node)
+                maximize (tree-depth child)))))
+
+(defun map-tree (node function)
+  (funcall function node)
+  (loop for child in (mcts-node-children node) do
+    (map-tree child function)))
+
+(defun heatmap (root)
+  (let ((heatmap (make-array (array-dimensions (game-board (mcts-node-game root)))
+                             :initial-element 0
+                             :element-type '(unsigned-byte 64))))
+    (flet ((heat-fn (node)
+             (let* ((game (mcts-node-game node))
+                    (hero (game-active-hero game)))
+               (when (= (hero-id hero) (game-player-id game))
+                 (incf (aref heatmap (hero-x hero) (hero-y hero)))))))
+      (map-tree root #'heat-fn))
+    heatmap))

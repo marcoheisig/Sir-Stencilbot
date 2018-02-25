@@ -34,6 +34,8 @@
 
    #:compute-distance-map
    #:distance
+   #:manhattan-distance
+   #:euclidean-distance
 
    #:play-game))
 

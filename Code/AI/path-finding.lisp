@@ -31,3 +31,11 @@
             most-positive-fixnum
             value))
       most-positive-fixnum))
+
+(defun manhattan-distance (hero-1 hero-2)
+  (max (abs (- (hero-x hero-1) (hero-x hero-2)))
+       (abs (- (hero-y hero-1) (hero-y hero-2)))))
+
+(defun euclidean-distance (hero-1 hero-2)
+  (sqrt (+ (expt (- (hero-x hero-1) (hero-x hero-2)) 2)
+           (expt (- (hero-y hero-1) (hero-y hero-2)) 2))))

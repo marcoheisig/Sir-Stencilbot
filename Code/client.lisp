@@ -34,7 +34,7 @@
                                  (cons "dir" (string-capitalize next-turn)))))
           (when (not json) (loop-finish))
           (let ((new-game (parse-game json)))
-            ;(check-simulation game new-game)
+            (check-simulation game new-game)
             (setf game new-game)))))
     (printf "~&Done!~%")))
 
@@ -167,7 +167,7 @@
       (map-product
        (lambda (&rest turns)
          (let ((simulation (run-simulation turns)))
-           (when (game-equal new-game simulation)
+           (when (equalp new-game simulation)
              (return))))
        #1='(:stay :north :south :east :west) #1# #1# #1#)
-      (error "Cannot advance ~A to ~A.~%" old-game new-game))))
+      (error "Cannot advance~%~S~%to~%~S.~%" old-game new-game))))

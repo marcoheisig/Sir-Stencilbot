@@ -1,38 +1,57 @@
 (in-package :vindinium/sir-stencilbot)
 
-(defun |Sir Stencilbot| (game)
+(defun sir-stencilbot (game)
   (mcts-search
    game
-   :time-budget 0.4
+   :time-budget 0.2
    :active-player-fn (lambda (game) (1- (game-active-id game)))
    :move-fn #'game-simulate
    :playout-fn #'playout
-   :untried-move-fn #'untried-moves))
-
-(defun sir-stencilbot-metric (old-game new-game)
-  (let ((gains (make-array 5 :element-type 'single-float
-                             :initial-element 0.0)))
-    (prog1 gains
-      (loop for id from 1 to 4 do
-        (let ((old-hero (game-hero old-game id))
-              (new-hero (game-hero new-game id)))
-          (let ((old-gold-mines (count id (game-mine-owners old-game)))
-                (new-gold-mines (count id (game-mine-owners new-game))))
-            (setf (aref gains id)
-                  (max (+ 0.4
-                          ;; winning mines is good
-                          (* 0.4 (- new-gold-mines old-gold-mines))
-                          ;; health is important
-                          (if (< (hero-life old-hero) 72)
-                              (min
-                               0.3
-                               (* 0.01 (- (hero-life new-hero)
-                                          (hero-life old-hero))))
-                            0.0))
-                       0.0))))))))
+   :untried-moves-fn #'untried-moves))
 
 (defun playout (game)
-  )
+  (let ((total-mines (length (game-mine-owners game)))
+        (mines (make-array 4 :element-type 'non-negative-fixnum
+                             :initial-element 0)))
+    (declare (dynamic-extent mines))
+    (loop for mine-owner across (game-mine-owners game) do
+      (case mine-owner
+        (1 (incf (aref mines 0)))
+        (2 (incf (aref mines 1)))
+        (3 (incf (aref mines 2)))
+        (4 (incf (aref mines 3)))))
+    (flet ((individual-playout (player-number)
+             (let (;; 25% of all gold mines is 0.0
+                   ;; 50% of all gold mines is 1.0
+                   (gold-score
+                     (- (/ (float (aref mines player-number))
+                           (* 0.25 (float total-mines)))
+                        1.0))
+                   ;; more than 100 health is 1.0
+                   ;; 0 health is -1.0
+                   (health-score
+                     (- (/ (float (hero-life (game-hero game (1+ player-number)))) 50.0)
+                        1.0)))
+               (tanh (+ ;; caution
+                      (* 0.5 health-score)
+                      ;; greed
+                      (* 1.0 gold-score))))))
+      (make-array  4 :element-type 'single-float
+                     :initial-contents (list (individual-playout 0)
+                                             (individual-playout 1)
+                                             (individual-playout 2)
+                                             (individual-playout 3))))))
 
 (defun untried-moves (game)
-  )
+  ;; This function has tremendous impact on the depth of the search
+  ;; tree. Consequentially, we try hard to keep the number of untried moves
+  ;; small.
+  (let ((melee-mode-p nil))
+    (if melee-mode-p
+        (game-possible-moves game)
+        (cond ((= (game-active-id game) (game-player-id game))
+               ;; The player hero's turn
+               (remove :stay (game-possible-moves game)))
+              (t
+               ;; Some other hero's turn
+               (list (random-elt (game-possible-moves game))))))))

@@ -28,15 +28,22 @@
         (mcts-add-node root)
         (incf node-counter))
       (printf "Searched ~D nodes.~%" node-counter)
-      (printf "Move Weights: ~{~A: ~A~^ ~}~%"
+      (printf "Tree depth: ~D..~%" (tree-depth root))
+      (printf "Weights: (~{(:~A . ~,5F)~^ ~})~%"
               (loop for child in (mcts-node-children root)
                     collect (mcts-node-move child)
-                    collect (mcts-node-visits child)))
+                    collect (mcts-quality child)))
       (mcts-node-move
        (first
         (sort
          (mcts-node-children root)
          #'> :key #'mcts-node-visits))))))
+
+(defun tree-depth (node)
+  (if (null (mcts-node-children node))
+      1
+      (1+ (loop for child in (mcts-node-children node)
+                maximize (tree-depth child)))))
 
 (defstruct (mcts-node
             (:constructor %make-mcts-node))
@@ -66,8 +73,8 @@
   (not (mcts-node-parent node)))
 
 (defun make-mcts-node (parent move)
-  (removef move (mcts-node-untried-moves parent))
-  (let* ((game (funcall *mcts-move-fn* (mcts-node-game parent)))
+  (removef (mcts-node-untried-moves parent) move)
+  (let* ((game (funcall *mcts-move-fn* (mcts-node-game parent) move))
          (weights (funcall *mcts-playout-fn* game))
          (untried-moves (funcall *mcts-untried-moves-fn* game))
          (child (%make-mcts-node
@@ -111,8 +118,8 @@
   (declare (type mcts-node node)
            (type (simple-array single-float (*)) weights)
            (optimize (speed 3) (safety 0)))
+  (incf (mcts-node-visits node))
   (unless (mcts-root-node-p node)
-    (incf (mcts-node-visits node))
     (setf (mcts-node-quality node) nil)
     (loop for q across weights
           for index from 0 do

@@ -3,7 +3,7 @@
 (defun game-simulate (game move)
   (declare (optimize speed))
   (let* ((game (copy-game game))
-         (active (game-active-hero game))
+         (active (game-active-id game))
          (hero (copy-hero (game-hero game active))))
     (setf (game-hero game active) hero)
     (setf (game-mine-owners game)
@@ -18,9 +18,6 @@
             (:east  (values x (1+ y)))
             (:west  (values x (1- y)))
             (:stay  (values x y))))
-      #+nil
-      (printf "Hero ~D (~D ~D) -> (~D ~D)~%"
-              active (hero-x hero) (hero-y hero) new-x new-y)
       (unless (eq move :stay)
         (let ((tile (game-tile game new-x new-y)))
           (case tile
@@ -39,12 +36,14 @@
                                          :test #'equal)))
                ;; heroes cannot conquer their own mines
                (unless (= (aref (game-mine-owners game) mine-index) (hero-id hero))
-                 (if (> (hero-life hero) 20)
-                     ;; conquer a mine
-                     (setf (aref (game-mine-owners game) mine-index)
-                           (hero-id hero))
-                     ;; die painfully
-                     (kill-hero game hero 0)))))
+                 (cond ((> (hero-life hero) 20)
+                        ;; conquer a mine
+                        (setf (aref (game-mine-owners game) mine-index)
+                              (hero-id hero))
+                        (decf (hero-life hero) 20))
+                       (t
+                        ;; die painfully
+                        (kill-hero game hero 0))))))
             (:wall)))))
     ;; Fight
     (damage-neighbors game hero)

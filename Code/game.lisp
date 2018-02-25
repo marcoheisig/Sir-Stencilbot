@@ -98,32 +98,6 @@
 (defun next-player (id)
   (if (= 4 id) 1 (1+ id)))
 
-(defun game-equal (game-1 game-2)
-  (and
-   (equalp (game-mine-owners game-1)
-           (game-mine-owners game-2))
-   (= (game-turn game-1)
-      (game-turn game-2))
-   (= (game-active-hero game-1)
-      (game-active-hero game-2))
-   (hero-equal (game-hero-1 game-1)
-               (game-hero-1 game-2))
-   (hero-equal (game-hero-2 game-1)
-               (game-hero-2 game-2))
-   (hero-equal (game-hero-3 game-1)
-               (game-hero-3 game-2))
-   (hero-equal (game-hero-4 game-1)
-               (game-hero-4 game-2))))
-
-(defun hero-equal (hero-1 hero-2)
-  (and
-   (= (hero-gold hero-1)
-      (hero-gold hero-2))
-   (= (hero-x hero-1)
-      (hero-x hero-2))
-   (= (hero-y hero-1)
-      (hero-y hero-2))))
-
 (defun copy-full-game (game)
   (let ((new-game (copy-game game)))
     (setf (game-hero-1 new-game) (copy-hero (game-hero-1 new-game)))
@@ -135,7 +109,7 @@
     new-game))
 
 (defun game-possible-moves (game)
-  (let* ((hero (game-hero game (game-active-hero game)))
+  (let* ((hero (game-hero game (game-active-id game)))
          (x (hero-x hero))
          (y (hero-y hero)))
     (let ((north (game-tile game (1- x) y))

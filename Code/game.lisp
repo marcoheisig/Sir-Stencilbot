@@ -116,7 +116,7 @@
           (south (game-tile game (1+ x) y))
           (east (game-tile game x (1+ y)))
           (west (game-tile game x (1- y)))
-          (result '()))
+          (result (list :stay)))
       (unless (eq north :wall) (push :north result))
       (unless (eq east :wall) (push :east result))
       (unless (eq west :wall) (push :west result))
@@ -130,3 +130,13 @@
 (defun game-active-hero (game)
   (declare (game game))
   (game-hero game (game-active-id game)))
+
+(defun game-heroes (game)
+  (list (game-hero-1 game)
+        (game-hero-2 game)
+        (game-hero-3 game)
+        (game-hero-4 game)))
+
+(defun game-other-heroes (game)
+  (remove (game-active-hero game)
+          (game-heroes game)))

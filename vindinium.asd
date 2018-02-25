@@ -16,4 +16,5 @@
                              (:file "client")
                              (:module "AI"
                               :components ((:file "mcts")
+                                           (:file "path-finding")
                                            (:file "sir-stencilbot")))))))

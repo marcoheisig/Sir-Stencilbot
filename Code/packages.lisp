@@ -22,11 +22,18 @@
    #:game-active-id
    #:game-mine-owners
    #:game-hero
+   #:game-heroes
+   #:game-active-hero
+   #:game-player-hero
+   #:game-other-heroes
    #:game-tile
    #:game-possible-moves
    #:game-simulate
 
    #:mcts-search
+
+   #:compute-distance-map
+   #:distance
 
    #:play-game))
 

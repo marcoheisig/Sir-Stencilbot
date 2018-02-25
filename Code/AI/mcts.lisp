@@ -28,7 +28,7 @@
         (mcts-add-node root)
         (incf node-counter))
       (printf "Searched ~D nodes.~%" node-counter)
-      (printf "Tree depth: ~D..~%" (tree-depth root))
+      (printf "Tree depth: ~D.~%" (tree-depth root))
       (printf "Weights: (~{(:~A . ~,5F)~^ ~})~%"
               (loop for child in (mcts-node-children root)
                     collect (mcts-node-move child)

@@ -3,7 +3,7 @@
 (defun sir-stencilbot (game)
   (mcts-search
    game
-   :time-budget 0.2
+   :time-budget 0.3
    :active-player-fn (lambda (game) (1- (game-active-id game)))
    :move-fn #'game-simulate
    :playout-fn #'playout
@@ -20,8 +20,10 @@
         (2 (incf (aref mines 1)))
         (3 (incf (aref mines 2)))
         (4 (incf (aref mines 3)))))
-    (flet ((individual-playout (player-number)
-             (let (;; 25% of all gold mines is 0.0
+    (flet
+        ((individual-playout (player-number)
+           (let ((hero (game-hero game (1+ player-number))))
+             (let ( ;; 25% of all gold mines is 0.0
                    ;; 50% of all gold mines is 1.0
                    (gold-score
                      (- (/ (float (aref mines player-number))
@@ -30,12 +32,16 @@
                    ;; more than 100 health is 1.0
                    ;; 0 health is -1.0
                    (health-score
-                     (- (/ (float (hero-life (game-hero game (1+ player-number)))) 50.0)
+                     (- (/ (float (hero-life hero)) 50.0)
                         1.0)))
+               #+nil
+               (when (= (hero-id hero) (game-player-id game))
+                 (format t "health-score: ~,2F position-score ~,2F gold-score ~,2F~%"
+                         health-score position-score gold-score))
                (tanh (+ ;; caution
-                      (* 0.5 health-score)
+                      (* 0.4 health-score)
                       ;; greed
-                      (* 1.0 gold-score))))))
+                      (* 1.0 gold-score)))))))
       (make-array  4 :element-type 'single-float
                      :initial-contents (list (individual-playout 0)
                                              (individual-playout 1)
@@ -46,12 +52,6 @@
   ;; This function has tremendous impact on the depth of the search
   ;; tree. Consequentially, we try hard to keep the number of untried moves
   ;; small.
-  (let ((melee-mode-p nil))
-    (if melee-mode-p
-        (game-possible-moves game)
-        (cond ((= (game-active-id game) (game-player-id game))
-               ;; The player hero's turn
-               (remove :stay (game-possible-moves game)))
-              (t
-               ;; Some other hero's turn
-               (list (random-elt (game-possible-moves game))))))))
+  (if (= (game-active-id game) (game-player-id game))
+      (remove :stay (game-possible-moves game))
+      (list (random-elt (game-possible-moves game)))))

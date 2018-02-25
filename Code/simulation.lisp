@@ -97,4 +97,10 @@
     (loop for index below (length mine-owners) do
       (when (= (aref mine-owners index)
                (hero-id looser))
-        (setf (aref mine-owners index) winner-id)))))
+        (setf (aref mine-owners index) winner-id))))
+  (loop for hero-id from 1 to 4
+        unless (= hero-id (hero-id looser)) do
+          (let ((other-hero (game-hero game hero-id)))
+            (when (and (= (hero-x other-hero) (hero-spawn-x looser))
+                       (= (hero-y other-hero) (hero-spawn-y looser)))
+              (kill-hero game other-hero (hero-id looser))))))

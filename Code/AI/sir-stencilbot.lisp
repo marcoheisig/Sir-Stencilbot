@@ -39,9 +39,9 @@
                  (format t "health-score: ~,2F position-score ~,2F gold-score ~,2F~%"
                          health-score position-score gold-score))
                (tanh (+ ;; caution
-                      (* 0.4 health-score)
+                      (* 0.3 health-score)
                       ;; greed
-                      (* 1.0 gold-score)))))))
+                      (* 2.0 gold-score)))))))
       (make-array  4 :element-type 'single-float
                      :initial-contents (list (individual-playout 0)
                                              (individual-playout 1)

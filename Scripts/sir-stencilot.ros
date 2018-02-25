@@ -1,0 +1,20 @@
+#!/bin/sh
+#|-*- mode:lisp -*-|#
+#|
+exec ros -Q -- $0 "$@"
+|#
+(progn ;;init forms
+  (ros:ensure-asdf)
+  #+quicklisp (ql:quickload "vindinium" :silent t)
+  )
+
+(defpackage :ros.script.sir-stencilot.3728572975
+  (:use :cl))
+
+(in-package :ros.script.sir-stencilot.3728572975)
+
+(defun main (&rest argv)
+  (declare (ignorable argv))
+  (vindinium:play-game #'vindinium/sir-stencilbot::sir-stencilbot :test t))
+
+;;; vim: set ft=lisp lisp:

@@ -1,0 +1,8 @@
+#+TITLE: Vindinium
+
+In February 2018, briefly after [[http:www.vindinium.org]] went offline, the
+employees of the [[http:www10.cs.fau.de][Chair for System Simulation]] decided to host their own
+Vindinium server and have a two day AI battle. Six teams with six different
+programming languages (C++, C#, Scala, Python, Common Lisp and Julia)
+entered the competition. This repository contains the results of team
+Common Lisp.

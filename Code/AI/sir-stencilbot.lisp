@@ -74,9 +74,12 @@
              (hero (game-hero game player-id))
              (x (hero-x hero))
              (y (hero-y hero)))
-        (moveset-to-moves
-         (moveset-union (aref *hero-path-map* x y)
-                        (aref *static-path-map* x y))))
+        (or
+         (moveset-to-moves
+          (moveset-union (aref *hero-path-map* x y)
+                         (aref *static-path-map* x y)))
+         ;; the path maps may reach a dead end, in this case, stay put.
+         '(:stay)))
       (list (random-elt (game-possible-moves game)))))
 
 (defun compute-hero-path-map (game)

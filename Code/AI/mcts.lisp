@@ -78,9 +78,9 @@
         (*mcts-active-player-fn* active-player-fn))
     (let ((root (make-mcts-root-node game))
           (node-counter 0))
-      (loop until (funcall termination-fn) do
-        (mcts-add-node root)
-        (incf node-counter))
+      (loop do (mcts-add-node root)
+               (incf node-counter)
+            until (funcall termination-fn))
       (printf "Searched ~D nodes.~%" node-counter)
       (printf "Tree depth: ~D.~%" (tree-depth root))
       (printf "Heat map: ~A.~%" (heatmap root))

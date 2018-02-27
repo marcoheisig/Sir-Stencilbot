@@ -136,24 +136,31 @@
 
 (defun draw-path-map (distance-map path-map positions)
   (declare (type (simple-array fixnum (* *)) distance-map)
-           (type (simple-array moveset (* *)) path-map))
-
-  (labels ((draw-path (x y)
-             ;; Starting from TARGET, descend the distance map until it
-             ;; is zero. Since we walk backward, moves must be drawn in
-             ;; the opposite direction
-             (let ((distance (aref distance-map x y)))
-               (probe-neighbor (1+ x) y (moveset :north) distance)
-               (probe-neighbor (1- x) y (moveset :south) distance)
-               (probe-neighbor x (1+ y) (moveset :west) distance)
-               (probe-neighbor x (1- y) (moveset :east) distance)))
-           (probe-neighbor (x y moveset distance)
-             (when (array-in-bounds-p distance-map x y)
+           (type (simple-array moveset (* *)) path-map)
+           (optimize speed))
+  (let ((max (1- (array-dimension distance-map 0))))
+    (labels ((draw-path (x y)
+               ;; Starting from TARGET, descend the distance map until it
+               ;; is zero. Since we walk backward, moves must be drawn in
+               ;; the opposite direction
+               (declare (non-negative-fixnum x y))
+               (let ((distance (aref distance-map x y)))
+                 (unless (= x max)
+                   (probe-neighbor (1+ x) y (moveset :north) distance))
+                 (unless (= x 0)
+                   (probe-neighbor (1- x) y (moveset :south) distance))
+                 (unless (= y max)
+                   (probe-neighbor x (1+ y) (moveset :west) distance))
+                 (unless (= y 0)
+                   (probe-neighbor x (1- y) (moveset :east) distance))))
+             (probe-neighbor (x y moveset distance)
+               (declare (non-negative-fixnum x y distance)
+                        (moveset moveset))
                (let ((new-distance (aref distance-map x y)))
                  (when (and (/= -1 new-distance)
                             (< new-distance distance))
                    (setf (aref path-map x y)
                          (moveset-union (aref path-map x y) moveset))
-                   (draw-path x y))))))
-    (loop for (x . y) in positions do (draw-path x y))
-    path-map))
+                   (draw-path x y)))))
+      (loop for (x . y) in positions do (draw-path x y))
+      path-map)))

@@ -11,6 +11,7 @@
   :components ((:module "Code"
                 :serial t
                 :components ((:file "packages")
+                             (:file "utilities")
                              (:file "game")
                              (:file "simulation")
                              (:file "client")

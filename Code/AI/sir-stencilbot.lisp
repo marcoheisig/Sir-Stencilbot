@@ -1,13 +1,34 @@
 (in-package :vindinium/sir-stencilbot)
 
-(defun sir-stencilbot (game)
-  (mcts-search
-   game
-   :time-budget 0.3
-   :active-player-fn (lambda (game) (1- (game-active-id game)))
-   :move-fn #'game-simulate
-   :playout-fn #'playout
-   :untried-moves-fn #'untried-moves))
+;; A path map connecting all taverns and mines with all other taverns and
+;; mines.
+(defvar *static-path-map* nil)
+
+;; The path map for Sir Stencilbot. This is the only path map that is
+;; recomputed each turn.
+(defvar *hero-path-map* nil)
+
+(defun sir-stencilbot (&key (training t)
+                         (server "http://vindinium.walberla.net")
+                         (secret-key "hujgkdbt"))
+  (let* ((url (concatenate 'string server "/api/" (if training "training" "arena")))
+         (game (new-game url secret-key))
+         (timer (make-timer))
+         (*static-path-map* (compute-static-path-map game))
+         (*hero-path-map* nil))
+    (loop until (game-finished-p game)
+          for *hero-path-map* = (compute-hero-path-map game)
+          for next-move
+            = (mcts-search
+               game
+               :termination-fn (lambda () (< 0.4 (funcall timer)))
+               :active-player-fn (lambda (game) (1- (game-active-id game)))
+               :move-fn #'game-simulate
+               :playout-fn #'playout
+               :untried-moves-fn #'untried-moves)
+          do
+             (setf game (game-send-turn game secret-key next-move))
+             (setf timer (make-timer)))))
 
 (defun playout (game)
   (let ((total-mines (length (game-mine-owners game)))
@@ -49,5 +70,34 @@
   ;; tree. Consequentially, we try hard to keep the number of untried moves
   ;; small.
   (if (= (game-active-id game) (game-player-id game))
-      (remove :stay (game-possible-moves game))
+      (let* ((player-id (game-player-id game))
+             (hero (game-hero game player-id))
+             (x (hero-x hero))
+             (y (hero-y hero)))
+        (moveset-to-moves
+         (moveset-union (aref *hero-path-map* x y)
+                        (aref *static-path-map* x y))))
       (list (random-elt (game-possible-moves game)))))
+
+(defun compute-hero-path-map (game)
+  (let* ((player-id (game-player-id game))
+         (hero (game-player-hero game))
+         (unoccupied-mines
+           (loop for mine across (game-mine-positions game)
+                 for owner across (game-mine-owners game)
+                 when (/= owner player-id)
+                   collect mine))
+         (taverns (loop for tavern across (game-tavern-positions game)
+                        collect tavern)))
+    (compute-path-map game (cons (hero-x hero) (hero-y hero))
+                      (append unoccupied-mines taverns))))
+
+(defun compute-static-path-map (game)
+  (let ((path-map (make-empty-path-map game))
+        (entities (concatenate 'list
+                               (game-tavern-positions game)
+                               (game-mine-positions game))))
+    (loop for entity in entities do
+      (let ((distance-map (compute-distance-map game entity)))
+        (draw-path-map distance-map path-map entities)))
+    path-map))

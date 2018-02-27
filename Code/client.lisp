@@ -1,39 +1,17 @@
 (in-package :vindinium)
 
-(defparameter *secret-key* "hujgkdbt")
-;;(defparameter *secret-key* "x5mv46gq")
-(defparameter *arena-server* "http://vindinium.walberla.net/api/arena")
-(defparameter *test-server* "http://vindinium.walberla.net/api/training")
-(defparameter *server* "http://vindinium.walberla.net/api/training")
-(defparameter *next-url* nil)
-(defparameter *time-budget* nil)
-(defparameter *time-start* nil)
-
-(defun printf (fmt &rest args)
-  (apply #'format t fmt args)
-  (finish-output))
-
-(defun play-game (bot-function &key (test t))
-  (let ((*server* (if test *test-server* *arena-server*)))
-    (run-game bot-function)))
-
-(defun run-game (bot-function)
+(defun new-game (url secret-key)
   (printf "Connecting...~%")
-  (let* ((game (parse-game
-                (communicate *server* (cons "key" *secret-key*)))))
-    (printf "We are player ~D.~%" (game-player-id game))
+  (let ((game (parse-game
+               (communicate url (cons "key" secret-key)))))
     (printf "View URL: ~A~%" (game-view-url game))
-    ;; The primary game loop
-    (loop until (game-finished-p game) do
-      (let* ((next-turn (funcall bot-function game)))
-        (let ((json (communicate *next-url*
-                                 (cons "key" *secret-key*)
-                                 (cons "dir" (string-capitalize next-turn)))))
-          (when (not json) (loop-finish))
-          (let ((new-game (parse-game json)))
-            (check-simulation game new-game)
-            (setf game new-game)))))
-    (printf "~&Done!~%")))
+    game))
+
+(defun game-send-turn (game secret-key next-move)
+  (parse-game
+   (communicate (game-play-url game)
+                (cons "key" secret-key)
+                (cons "dir" (string-capitalize next-move)))))
 
 (defun communicate (url &rest params)
   (multiple-value-bind (body status)
@@ -47,8 +25,8 @@
 (defun parse-game (json)
   (let ((game (jsown:val json "game"))
         (my-hero (jsown:val json "hero"))
-        (view-url (jsown:val json "viewUrl")))
-    (setf *next-url* (jsown:val json "playUrl"))
+        (view-url (jsown:val json "viewUrl"))
+        (play-url (jsown:val json "playUrl")))
     (let ((game-id (jsown:val game "id"))
           (game-turn (jsown:val game "turn"))
           (game-max-turns (jsown:val game "maxTurns"))
@@ -62,6 +40,7 @@
                         :id game-id
                         :player-id player-id
                         :view-url view-url
+                        :play-url play-url
                         :board board
                         :mine-positions mine-positions
                         :tavern-positions tavern-positions

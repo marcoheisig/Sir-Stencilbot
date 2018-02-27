@@ -15,30 +15,9 @@
 ;;; previously returned weights
 (defvar *mcts-active-player-fn* nil)
 
-(defun mcts-search (game &key time-budget
-                           playout-fn untried-moves-fn move-fn active-player-fn)
-  (let ((*mcts-untried-moves-fn* untried-moves-fn)
-        (*mcts-move-fn* move-fn)
-        (*mcts-playout-fn* playout-fn)
-        (*mcts-active-player-fn* active-player-fn))
-    (let ((root (make-mcts-root-node game))
-          (node-counter 0)
-          (t-max (+ (get-internal-real-time) (* time-budget internal-time-units-per-second))))
-      (loop while (< (get-internal-real-time) t-max) do
-        (mcts-add-node root)
-        (incf node-counter))
-      (printf "Searched ~D nodes.~%" node-counter)
-      (printf "Tree depth: ~D.~%" (tree-depth root))
-      (printf "Heat map: ~A.~%" (heatmap root))
-      (printf "Weights: (~{(:~A . ~,5F)~^ ~})~%"
-              (loop for child in (mcts-node-children root)
-                    collect (mcts-node-move child)
-                    collect (mcts-quality child)))
-      (mcts-node-move
-       (first
-        (sort
-         (mcts-node-children root)
-         #'> :key #'mcts-node-visits))))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;; The MCTS node data structure
 
 (defstruct (mcts-node
             (:constructor %make-mcts-node))
@@ -83,6 +62,37 @@
     (prog1 child
       (push child (mcts-node-children parent))
       (mcts-backpropagate parent weights))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;; The search algorithm
+
+(defun mcts-search (game &key termination-fn
+                           playout-fn
+                           untried-moves-fn
+                           move-fn
+                           active-player-fn)
+  (let ((*mcts-untried-moves-fn* untried-moves-fn)
+        (*mcts-move-fn* move-fn)
+        (*mcts-playout-fn* playout-fn)
+        (*mcts-active-player-fn* active-player-fn))
+    (let ((root (make-mcts-root-node game))
+          (node-counter 0))
+      (loop until (funcall termination-fn) do
+        (mcts-add-node root)
+        (incf node-counter))
+      (printf "Searched ~D nodes.~%" node-counter)
+      (printf "Tree depth: ~D.~%" (tree-depth root))
+      (printf "Heat map: ~A.~%" (heatmap root))
+      (printf "Weights: (~{(:~A . ~,5F)~^ ~})~%"
+              (loop for child in (mcts-node-children root)
+                    collect (mcts-node-move child)
+                    collect (mcts-quality child)))
+      (mcts-node-move
+       (first
+        (sort
+         (mcts-node-children root)
+         #'> :key #'mcts-node-visits))))))
 
 (defun mcts-quality (node)
   (or (mcts-node-quality node)

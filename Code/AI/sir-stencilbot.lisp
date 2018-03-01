@@ -2,29 +2,14 @@
 
 (defvar *tavern-distance-maps* nil)
 
-(defvar *mine-distance-maps* nil)
-
-(defvar *hero-distance-maps* nil)
-
-(defvar *hero-path-map* nil)
-
-(defvar *game* nil)
-
 (defun sir-stencilbot (&key (training t)
                          (server "http://vindinium.walberla.net")
                          (secret-key "hujgkdbt"))
   (let* ((url (concatenate 'string server "/api/" (if training "training" "arena")))
          (game (new-game url secret-key))
          (timer (make-timer))
-         (*tavern-distance-maps* (compute-tavern-distance-maps game))
-         (*mine-distance-maps* (compute-tavern-distance-maps game))
-         (*hero-distance-maps* nil)
-         (*hero-path-map* nil)
-         (*game* nil))
+         (*tavern-distance-maps* (compute-tavern-distance-maps game)))
     (loop until (game-finished-p game)
-          for *hero-distance-maps* = (compute-hero-distance-maps game)
-          for *hero-path-map* = (compute-hero-path-map game)
-          for *game* = game
           for next-move
             = (mcts-search
                game
@@ -47,85 +32,76 @@
 ;;;   gold mines with a health of more than 20.
 ;;;
 ;;; - The chances of being slain by an opponent. This is the case when for
-;;;   each tavern, there is an enemy closer to this tavern. And it
-;;;   increases drastically when we have less than 21 health left and end
-;;;   up next to an opponent. Note that being slain is only as bad as the
-;;;   number of gold mines we own. Dying may actually be a smart move.
+;;;   each tavern, there is an enemy closer to this tavern. Note that being
+;;;   slain is only as bad as the number of gold mines lost.
 ;;;
 ;;; - The chances of slaying an opponent. These chances are computed in a
 ;;;   similar manner. The chance arises when we are closer to a tavern than
-;;;   a (preferably rich) enemy and when all other taverns are blocked by
-;;;   other opponents.
+;;;   a (preferably rich) enemy, when all other taverns are blocked by
+;;;   other opponents and when we get closer to this enemy.
 (defun playout (game)
-  (let ((total-mines (length (game-mine-owners game)))
-        (old-mines (make-array 4 :element-type 'non-negative-fixnum
-                                 :initial-element 0))
-        (new-mines (make-array 4 :element-type 'non-negative-fixnum
-                                 :initial-element 0)))
-    (declare (dynamic-extent old-mines new-mines))
-    (flet ((compute-mines (game mines)
-             (loop for mine-owner across (game-mine-owners game) do
-               (case mine-owner
-                 (1 (incf (aref mines 0)))
-                 (2 (incf (aref mines 1)))
-                 (3 (incf (aref mines 2)))
-                 (4 (incf (aref mines 3)))))))
-      (compute-mines *game* old-mines)
-      (compute-mines game new-mines))
+  (let ((total-mines (length (game-mine-owners game))))
     (flet
         ((individual-playout (player-number)
-           (let ((hero (game-hero game (1+ player-number))))
-             (let ( ;; 25% of all gold mines is 0.0
-                   ;; 50% of all gold mines is 1.0
-                   (gold-score
-                     (float (/ (- (aref new-mines player-number)
-                                  (aref old-mines player-number))
-                               total-mines)))
-                   ;; more than 100 health is 1.0
-                   ;; 0 health is -1.0
-                   (health-score
-                     (- (/ (float (hero-life hero)) 50.0)
-                        1.0)))
-               (tanh (+ ;; caution
-                      (* 0.1 health-score)
-                      ;; greed
-                      (* 1.0 gold-score)))))))
-      (make-array  4 :element-type 'single-float
-                     :initial-contents (list (individual-playout 0)
-                                             (individual-playout 1)
-                                             (individual-playout 2)
-                                             (individual-playout 3))))))
+           (let ((owned-mines (count player-number (game-mine-owners game)))
+                 (hero (game-hero game player-number))
+                 (greed 1.0)
+                 (caution 1.0)
+                 (anger 1.0))
+             (+ (* (capture-chance game hero) greed)
+                (* (death-chance game hero) owned-mines caution)
+                (* (slay-chance game hero) anger)))))
+      (make-array 4 :element-type 'single-float
+                    :initial-contents (list (individual-playout 1)
+                                            (individual-playout 2)
+                                            (individual-playout 3)
+                                            (individual-playout 4))))))
+
+(defun capture-chance (game hero)
+  1.0)
+
+(defun death-chance (game hero)
+  (let ((other-heroes (remove hero (game-heroes game))))
+    (if (loop for tavern-distance-map across *tavern-distance-maps*
+                theris
+                (< (aref tavern-distance-map
+                         (hero-x hero)
+                         (hero-y hero))
+                   (loop for other-hero in other-heroes
+                         minimize (aref tavern-distance-map
+                                        (hero-x other-hero)
+                                        (hero-y other-hero)))))
+        ;; we have a safe place to withdraw to
+        0.0
+        ;; we are endangered
+        -1.0)))
+
+(defun slay-chance (game hero)
+  0.0
+  #+nil
+  (let ((other-heroes (remove hero (game-heroes game))))
+    (loop for other-hero in other-heroes
+            thereis
+            (loop for tavern-distance-map across *tavern-distance-maps*
+                  always
+                    (< (aref tavern-distance-map
+                             (hero-x hero)
+                             (hero-y hero))
+                       (loop for other-hero in other-heroes
+                             minimize (aref tavern-distance-map
+                                            (hero-x other-hero)
+                                            (hero-y other-hero)))))
+            (if 
+                ;; we have a safe place to withdraw to
+                0.0
+                ;; we are endangered
+                -1.0))))
 
 ;;; This function has tremendous impact on the depth of the search
-;;; tree. Consequentially, we try hard to keep the number of untried moves
-;;; small.
+;;; tree. Consequentially, we should try to keep the number of untried
+;;; moves small.
 (defun untried-moves (game)
-  (if (= (game-active-id game) (game-player-id game))
-      (let* ((player-id (game-player-id game))
-             (hero (game-hero game player-id))
-             (x (hero-x hero))
-             (y (hero-y hero))
-             (enemy-distance
-               (loop for other-hero in (game-heroes game)
-                     for distance-map across *hero-distance-maps*
-                     unless (eq other-hero hero)
-                       minimize (aref distance-map x y))))
-        (cond
-          ((= 1 enemy-distance)
-           (game-possible-moves game))
-          ((< enemy-distance 4)
-           '(:north :south :west :east))
-          (t (or (moveset-to-moves (aref *hero-path-map* x y))
-                 ;; the path maps may reach a dead end, in this case, stay put.
-                 '(:stay)))))
-      (let* ((hero (game-active-hero game))
-             (player-distance (aref (aref *hero-distance-maps* (1- (game-player-id game)))
-                                    (hero-x hero)
-                                    (hero-y hero)))
-             (possible-moves (game-possible-moves game)))
-        (if (< player-distance 5)
-            possible-moves
-            (list (random-elt possible-moves))))))
+  (game-possible-moves game))
 
 (defun compute-tavern-distance-maps (game)
   (compute-distance-maps game (game-tavern-positions game)))

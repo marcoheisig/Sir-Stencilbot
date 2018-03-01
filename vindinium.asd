@@ -14,8 +14,8 @@
                              (:file "utilities")
                              (:file "game")
                              (:file "simulation")
+                             (:file "path-finding")
+                             (:file "mcts")
                              (:file "client")
                              (:module "AI"
-                              :components ((:file "mcts")
-                                           (:file "path-finding")
-                                           (:file "sir-stencilbot")))))))
+                              :components ((:file "sir-stencilbot")))))))

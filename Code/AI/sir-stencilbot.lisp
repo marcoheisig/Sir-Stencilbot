@@ -37,6 +37,25 @@
              (setf game (game-send-turn game secret-key next-move))
              (setf timer (make-timer)))))
 
+;;; The PLAYOUT function is tremendously important. It should accurately
+;;; reflect the winning probability at each tile in the game. Factors to
+;;; consider are:
+;;;
+;;; - The current number of gold mines.
+;;;
+;;; - The chances of capturing new gold mines. This is the ability to reach
+;;;   gold mines with a health of more than 20.
+;;;
+;;; - The chances of being slain by an opponent. This is the case when for
+;;;   each tavern, there is an enemy closer to this tavern. And it
+;;;   increases drastically when we have less than 21 health left and end
+;;;   up next to an opponent. Note that being slain is only as bad as the
+;;;   number of gold mines we own. Dying may actually be a smart move.
+;;;
+;;; - The chances of slaying an opponent. These chances are computed in a
+;;;   similar manner. The chance arises when we are closer to a tavern than
+;;;   a (preferably rich) enemy and when all other taverns are blocked by
+;;;   other opponents.
 (defun playout (game)
   (let ((total-mines (length (game-mine-owners game)))
         (old-mines (make-array 4 :element-type 'non-negative-fixnum

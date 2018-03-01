@@ -104,9 +104,8 @@
               (parent-visits (coerce (mcts-node-visits parent) 'single-float)))
           (setf (mcts-node-quality node)
                 (+ (/ child-quality child-visits)
-                   (* 0.2
-                      (sqrt (/ (* 2.0 (log parent-visits 2))
-                               child-visits)))))))))
+                   (sqrt (/ (* 2.0 (log parent-visits 2))
+                            child-visits))))))))
 
 (defun mcts-add-node (node)
   (let ((untried-moves (mcts-node-untried-moves node)))

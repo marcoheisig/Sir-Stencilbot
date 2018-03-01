@@ -61,26 +61,27 @@
 
 (defconstant +empty-moveset+ 0)
 
-(let ((moveset-alist
-        '((:north . #b00001)
-          (:east  . #b00010)
-          (:south . #b00100)
-          (:west  . #b01000)
-          (:stay  . #b10000))))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (let ((moveset-alist
+          '((:north . #b00001)
+            (:east  . #b00010)
+            (:south . #b00100)
+            (:west  . #b01000)
+            (:stay  . #b10000))))
 
-  (defun compute-moveset-moves (moveset)
-    (declare (moveset moveset))
-    (loop for (move . mask) in moveset-alist
-          when (plusp (logand moveset mask))
-            collect move))
+    (defun compute-moveset-moves (moveset)
+      (declare (moveset moveset))
+      (loop for (move . mask) in moveset-alist
+            when (plusp (logand moveset mask))
+              collect move))
 
-  (defmacro define-moveset-constructor ()
-    `(progn
-       (declaim (inline moveset))
-       (defun moveset (move)
-         (ecase move
-           ,@(loop for (key . mask) in moveset-alist
-                   collect `(,key ,mask)))))))
+    (defmacro define-moveset-constructor ()
+      `(progn
+         (declaim (inline moveset))
+         (defun moveset (move)
+           (ecase move
+             ,@(loop for (key . mask) in moveset-alist
+                     collect `(,key ,mask))))))))
 
 (define-moveset-constructor)
 
@@ -132,14 +133,16 @@
         (path-map (make-array (array-dimensions (game-board game))
                               :element-type 'moveset
                               :initial-element +empty-moveset+)))
-    (draw-path-map distance-map path-map other-positions)))
+    (loop for (x . y) in other-positions do
+      (draw-path distance-map path-map other-positions))
+    path-map))
 
-(defun draw-path-map (distance-map path-map positions)
+(defun draw-path (distance-map path-map position)
   (declare (type (simple-array fixnum (* *)) distance-map)
            (type (simple-array moveset (* *)) path-map)
            (optimize speed))
   (let ((max (1- (array-dimension distance-map 0))))
-    (labels ((draw-path (x y)
+    (labels ((visit (x y)
                ;; Starting from TARGET, descend the distance map until it
                ;; is zero. Since we walk backward, moves must be drawn in
                ;; the opposite direction
@@ -163,6 +166,6 @@
                             (< new-distance distance))
                    (setf (aref path-map x y)
                          (moveset-union (aref path-map x y) moveset))
-                   (draw-path x y)))))
-      (loop for (x . y) in positions do (draw-path x y))
+                   (visit x y)))))
+      (visit (car position) (cdr position))
       path-map)))

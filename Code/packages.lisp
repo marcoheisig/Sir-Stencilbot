@@ -27,6 +27,7 @@
    #:game-mine-owners
    #:game-hero
    #:game-heroes
+   #:game-hero-positions
    #:game-active-hero
    #:game-player-hero
    #:game-other-heroes
@@ -43,7 +44,7 @@
    #:compute-distance-map
    #:compute-path-map
    #:make-empty-path-map
-   #:draw-path-map
+   #:draw-path
    #:moveset
    #:moveset-union
    #:moveset-difference

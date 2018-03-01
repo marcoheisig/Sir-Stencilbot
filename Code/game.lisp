@@ -142,3 +142,9 @@
 (defun game-other-heroes (game)
   (remove (game-active-hero game)
           (game-heroes game)))
+
+(defun game-hero-positions (game)
+  (flet ((hero-position (hero)
+           (cons (hero-x hero)
+                 (hero-y hero))))
+    (mapcar #'hero-position (game-heroes game))))

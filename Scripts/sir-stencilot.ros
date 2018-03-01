@@ -15,6 +15,6 @@ exec ros -Q -- $0 "$@"
 
 (defun main (&rest argv)
   (declare (ignorable argv))
-  (vindinium/sir-stencilbot:sir-stencilbot :test nil))
+  (vindinium/sir-stencilbot:sir-stencilbot :training nil))
 
 ;;; vim: set ft=lisp lisp:

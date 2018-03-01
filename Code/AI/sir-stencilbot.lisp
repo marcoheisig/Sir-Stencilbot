@@ -58,7 +58,15 @@
                                             (individual-playout 4))))))
 
 (defun capture-chance (game hero)
-  1.0)
+  (let* ((position (cons (hero-x hero) (hero-y hero)))
+         (hero-id (hero-id hero))
+         (distance-map (compute-distance-map game position)))
+    (loop for (x . y) across (game-mine-positions game)
+          for mine-owner across (game-mine-owners game)
+          for distance = (aref distance-map x y)
+          when (and (/= mine-owner hero-id)
+                    (> (- (hero-life hero) distance) 20))
+            sum (/ 1.0 (float distance)))))
 
 (defun death-chance (game hero)
   (let ((other-heroes (remove hero (game-heroes game))))

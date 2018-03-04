@@ -1,6 +1,17 @@
 (in-package :vindinium/sir-stencilbot)
 
+;;; A hash table from positions to distance maps. The idea is that for the
+;;; duration of one game, the distance map of each tile is only computed
+;;; once.
+(defvar *distance-maps* nil)
+
+;;; A vector of distance maps, one for each tavern.
 (defvar *tavern-distance-maps* nil)
+
+;; The distance map of Sir Stencilbot at the beginning of the turn.
+(defvar *origin-map* nil)
+
+(defvar *origin-game* nil)
 
 (defun sir-stencilbot (&key (training t)
                          (server "http://vindinium.walberla.net")
@@ -8,12 +19,19 @@
   (let* ((url (concatenate 'string server "/api/" (if training "training" "arena")))
          (game (new-game url secret-key))
          (timer (make-timer))
-         (*tavern-distance-maps* (compute-tavern-distance-maps game)))
+         (*distance-maps* (make-hash-table
+                           :test #'equal
+                           :size (array-total-size (game-board game))))
+         (*tavern-distance-maps* (compute-tavern-distance-maps game))
+         (*origin-map* nil)
+         (*origin-game* nil))
     (loop until (game-finished-p game)
+          for *origin-map* = (hero-distance-map game (game-active-hero game))
+          for *origin-game* = game
           for next-move
             = (mcts-search
                game
-               :termination-fn (lambda () (< 0.4 (funcall timer)))
+               :termination-fn (lambda () (< 0.3 (funcall timer)))
                :active-player-fn (lambda (game) (1- (game-active-id game)))
                :move-fn #'game-simulate
                :playout-fn #'playout
@@ -39,77 +57,101 @@
 ;;;   similar manner. The chance arises when we are closer to a tavern than
 ;;;   a (preferably rich) enemy, when all other taverns are blocked by
 ;;;   other opponents and when we get closer to this enemy.
+;;;
+;;; - The proximity to a tavern.
+
 (defun playout (game)
-  (let ((total-mines (length (game-mine-owners game))))
-    (flet
-        ((individual-playout (player-number)
-           (let ((owned-mines (count player-number (game-mine-owners game)))
-                 (hero (game-hero game player-number))
-                 (greed 1.0)
-                 (caution 1.0)
-                 (anger 1.0))
-             (+ (* (capture-chance game hero) greed)
-                (* (death-chance game hero) owned-mines caution)
-                (* (slay-chance game hero) anger)))))
-      (make-array 4 :element-type 'single-float
-                    :initial-contents (list (individual-playout 1)
-                                            (individual-playout 2)
-                                            (individual-playout 3)
-                                            (individual-playout 4))))))
+  (flet ((individual-playout (player-number)
+           (let ((hero (game-hero game player-number)))
+             (tanh
+              (+
+               (- (count player-number (game-mine-owners game))
+                  (count player-number (game-mine-owners *origin-game*)))
+               (* (hero-life hero) 0.03))))))
+    (make-array 4 :element-type 'single-float
+                  :initial-contents (list (individual-playout 1)
+                                          (individual-playout 2)
+                                          (individual-playout 3)
+                                          (individual-playout 4)))))
 
-(defun capture-chance (game hero)
-  (let* ((position (cons (hero-x hero) (hero-y hero)))
-         (hero-id (hero-id hero))
-         (distance-map (compute-distance-map game position)))
-    (loop for (x . y) across (game-mine-positions game)
-          for mine-owner across (game-mine-owners game)
-          for distance = (aref distance-map x y)
-          when (and (/= mine-owner hero-id)
-                    (> (- (hero-life hero) distance) 20))
-            sum (/ 1.0 (float distance)))))
-
-(defun death-chance (game hero)
-  (let ((other-heroes (remove hero (game-heroes game))))
-    (if (loop for tavern-distance-map across *tavern-distance-maps*
-                theris
-                (< (aref tavern-distance-map
-                         (hero-x hero)
-                         (hero-y hero))
-                   (loop for other-hero in other-heroes
-                         minimize (aref tavern-distance-map
-                                        (hero-x other-hero)
-                                        (hero-y other-hero)))))
-        ;; we have a safe place to withdraw to
-        0.0
-        ;; we are endangered
-        -1.0)))
-
-(defun slay-chance (game hero)
-  0.0
-  #+nil
-  (let ((other-heroes (remove hero (game-heroes game))))
-    (loop for other-hero in other-heroes
-            thereis
-            (loop for tavern-distance-map across *tavern-distance-maps*
-                  always
-                    (< (aref tavern-distance-map
-                             (hero-x hero)
-                             (hero-y hero))
-                       (loop for other-hero in other-heroes
-                             minimize (aref tavern-distance-map
-                                            (hero-x other-hero)
-                                            (hero-y other-hero)))))
-            (if 
-                ;; we have a safe place to withdraw to
-                0.0
-                ;; we are endangered
-                -1.0))))
-
-;;; This function has tremendous impact on the depth of the search
+;;; This function has huge impact on the depth of the search
 ;;; tree. Consequentially, we should try to keep the number of untried
 ;;; moves small.
 (defun untried-moves (game)
-  (game-possible-moves game))
+  (if (= (game-active-id game)
+         (game-player-id game))
+      ;; Sir Stencilbot's moves
+      (sir-stencilbot-moves game)
+      ;; Other player's moves
+      (list (random-elt (game-possible-moves game)))))
+
+(defun sir-stencilbot-moves (game)
+  (let* ((player-hero (game-player-hero game))
+         (enemy-distance
+           (loop for hero in (game-heroes game)
+                 unless (eq hero player-hero)
+                   minimize (hero-distance game player-hero hero))))
+    (case enemy-distance
+      ;; potentially hit the enemy by staying
+      (1 (game-possible-moves game))
+      ;; potentially hit the enemy by moving towards him
+      (2 (remove :stay (game-possible-moves game)))
+      ;; try to cover a large search space by making only moves that
+      ;; increase distance from the origin.
+      (otherwise
+       (union (progressive-moves game player-hero)
+              (list (random-elt (game-possible-moves game))))))))
+
+(defun opponent-moves (game)
+  (if (> 3 (hero-distance
+            game
+            (game-active-hero game)
+            (game-player-hero game)))
+      (game-possible-moves game)
+      (list (random-elt (game-possible-moves game)))))
+
+;;; The set of sane moves that strictly increases the distance from the
+;;; origin.
+(defun progressive-moves (game hero)
+  (let* ((x (hero-x hero))
+         (y (hero-y hero))
+         (old-distance (aref *origin-map* x y))
+         (progressive-moves '()))
+    (loop for move in (game-possible-moves game)
+          ;; staying is never progressive
+          unless (eq move :stay) do
+            (multiple-value-bind (new-x new-y)
+                (case move
+                  (:north (values (1- x) y))
+                  (:south (values (1+ x) y))
+                  (:east  (values x (1+ y)))
+                  (:west  (values x (1- y))))
+              (case (game-tile game new-x new-y)
+                (:air
+                 (when (> (aref *origin-map* new-x new-y) old-distance)
+                   (push move progressive-moves)))
+                (:tavern
+                 (when (< (hero-life hero) 81)
+                   (push move progressive-moves)))
+                (:mine
+                 (push move progressive-moves))
+                (:wall
+                 (values)))))
+    progressive-moves))
+
+(defun hero-distance (game hero-1 hero-2)
+  (aref (hero-distance-map game hero-1)
+        (hero-x hero-2)
+        (hero-y hero-2)))
+
+(defun distance-map (game position)
+  (ensure-gethash
+   position *distance-maps*
+   (compute-distance-map game position)))
+
+(defun hero-distance-map (game hero)
+  (let ((position (cons (hero-x hero) (hero-y hero))))
+    (distance-map game position)))
 
 (defun compute-tavern-distance-maps (game)
   (compute-distance-maps game (game-tavern-positions game)))
@@ -123,41 +165,5 @@
 (defun compute-distance-maps (game positions)
   (map 'vector
        (lambda (position)
-         (compute-distance-map game position))
+         (distance-map game position))
        positions))
-
-;;; Return a path map that contains all shortest paths from the hero to
-;;; interesting entities and between these entities.
-(defun compute-hero-path-map (game)
-  (let ((player-id (game-player-id game))
-        (path-map (make-empty-path-map game))
-        (interesting-entities '())
-        (interesting-distance-maps '()))
-    ;; when health is low, taverns are interesting
-    (when (< (hero-life (game-player-hero game)) 61)
-      (loop for tavern across (game-tavern-positions game)
-            for distance-map across *tavern-distance-maps* do
-              (push tavern interesting-entities)
-              (push distance-map interesting-distance-maps)))
-    ;; given enough health, all unoccupied mines are interesting
-    (when (> (hero-life (game-player-hero game)) 21)
-      (loop for mine across (game-mine-positions game)
-            for owner across (game-mine-owners game)
-            for distance-map across *mine-distance-maps*
-            when (/= owner player-id) do
-              (push mine interesting-entities)
-              (push distance-map interesting-distance-maps)))
-    ;; connect all interesting entities
-    (loop for entity in interesting-entities
-          for distance-map in interesting-distance-maps do
-            (loop for other-entity in interesting-entities
-                  when (not (eq other-entity entity)) do
-                    (draw-path distance-map path-map other-entity)))
-    ;; lead the player to these entities
-    (loop for entity in interesting-entities do
-      (draw-path (aref *hero-distance-maps* (1- player-id))
-                 path-map entity))
-    (loop for entity in (game-hero-positions game) do
-      (draw-path (aref *hero-distance-maps* (1- player-id))
-                 path-map entity))
-    path-map))

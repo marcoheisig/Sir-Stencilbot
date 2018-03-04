@@ -81,10 +81,10 @@
       (loop do (mcts-add-node root)
                (incf node-counter)
             until (funcall termination-fn))
-      (printf "Searched ~D nodes.~%" node-counter)
-      (printf "Tree depth: ~D.~%" (tree-depth root))
+      (printf "Searched ~D nodes. Tree depth ~D~%" node-counter (tree-depth root))
       (printf "Heat map: ~A.~%" (heatmap root))
-      (printf "Weights: (~{(:~A . ~,5F)~^ ~})~%"
+      (printf "Turn ~D weights: (~{(:~A . ~,5F)~^ ~})~%"
+              (game-turn game)
               (loop for child in (mcts-node-children root)
                     collect (mcts-node-move child)
                     collect (mcts-quality child)))
@@ -92,7 +92,7 @@
        (first
         (sort
          (mcts-node-children root)
-         #'> :key #'mcts-node-visits))))))
+         #'> :key #'mcts-quality))))))
 
 (defun mcts-quality (node)
   (or (mcts-node-quality node)
